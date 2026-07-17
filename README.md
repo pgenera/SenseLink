@@ -21,7 +21,7 @@ While Sense [doesn't currently](https://community.sense.com/t/smart-plugs-freque
 
 
 # Configuration
-Configuration is defined through a YAML file, that should be passed in when creating an instance of the `SenseLink` class. See the [`config_example.yml`](https://github.com/cbpowell/SenseLink/blob/master/config_example.yml) file for a an example setup.
+Configuration is defined through a YAML file, that should be passed in when creating an instance of the `SenseLink` class. See the [`config_example.yml`](config_example.yml) file for a an example setup.
 
 The YAML configuration file should start with a top level `sources` key, which defines an array of sources for power data. Each source then has a `plugs` key to define an array of individual emulated plugs, plugs other configuration details as needed for that particular source. The current supported sources types are:
 - `hass`: Home Assistant, via the Websockets API
@@ -30,7 +30,7 @@ The YAML configuration file should start with a top level `sources` key, which d
 - `static`: Plugs with unchanging power values
 - `aggregate`: Summed values of other plugs, for example for a whole room - useful for staying under the Sense limit of ~20 plugs!
 
-See the [`config_example.yml`](https://github.com/cbpowell/SenseLink/blob/master/config_example.yml) for a full example, and [the wiki](https://github.com/cbpowell/SenseLink/wiki) for configuration details!
+See the [`config_example.yml`](config_example.yml) for a full example, and [the wiki](https://github.com/cbpowell/SenseLink/wiki) for configuration details!
 
 ## Basic Plug Definition
 Each plug definition needs, at the minimum, the following parameters:
@@ -59,6 +59,7 @@ More "advanced" plugs using smarthome/IoT integrations will require more details
 1. [Static plugs](https://github.com/cbpowell/SenseLink/wiki/Static-Plugs)
 2. [Home Assistant plugs](https://github.com/cbpowell/SenseLink/wiki/Home-Assistant-Plugs)
 3. [MQTT plugs](https://github.com/cbpowell/SenseLink/wiki/MQTT-Plugs)
+4. mpubsub plugs — see the `mpubsub:` section of [`config_example.yml`](config_example.yml) (same plug options as MQTT plugs)
 
 ## Aggregate Plug Definition
 Aggregate plugs can be used to __sum the power usage__ of any number of other defined plugs (inside SenseLink). For example: if you have Caseta dimmers on multiple light switches in your Kitchen, you can define individual HASS plugs for each switch, and then specify a "Kitchen" aggregate plug comprised of all those individual HASS plugs. The Aggregate plug will report the sum power of the individual plugs, and the individual plugs will __not__ be reported to Sense independently.
@@ -96,7 +97,7 @@ A Docker image is [available](https://hub.docker.com/repository/docker/theta142/
 An example `docker-compose` file is also provided in the repository.
 
 ## In other projects
-See the usage in the [`usage_example.py`](https://github.com/cbpowell/SenseLink/blob/master/usage_example.py) file.
+See the usage in the [`usage_example.py`](usage_example.py) file.
 
 # Todo
 - Add additional integrations!
