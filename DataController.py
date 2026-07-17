@@ -10,6 +10,14 @@ from asyncio_mqtt import Client, MqttError
 from contextlib import AsyncExitStack
 from typing import Dict
 
+try:
+    # Brokerless IPv6-multicast pub/sub. Optional so SenseLink still imports
+    # without it when no mpubsub source is configured; the MPubSubController
+    # raises a clear error if one is.
+    from mpubsub import MpubsubClient
+except ImportError:
+    MpubsubClient = None
+
 # Independently set WS logger
 wslogger = logging.getLogger('websockets')
 wslogger.setLevel(logging.WARNING)
@@ -226,6 +234,82 @@ class MQTTController:
                 await task
             except asyncio.CancelledError:
                 pass
+
+
+class MPubSubController:
+    """Feeds data sources from mpubsub topics.
+
+    The mpubsub analogue of MQTTController: it gathers each data source's
+    topic listeners, joins the corresponding IPv6 multicast groups via the
+    `mpubsub` library, and hands each received payload to the matching
+    handlers -- the very same handlers the MQTT source uses, since a payload
+    is just a decoded string either way.
+
+    mpubsub is brokerless (peers on the segment hear each other directly), so
+    there is no connection to lose and no reconnect loop.
+    """
+
+    def __init__(self, port=18512, scope="link-local", interface=None,
+                 key=None, replay_window=0):
+        if MpubsubClient is None:
+            raise ImportError(
+                "The 'mpubsub' package is required for mpubsub sources. Install it with:\n"
+                "  pip install 'mpubsub @ git+https://github.com/pgenera/esphome-mpubsub.git#subdirectory=python'")
+        self.port = port
+        self.scope = scope
+        self.interface = interface
+        self.key = key
+        self.replay_window = replay_window
+
+        self.data_sources = []
+        self.client = None
+        # topic -> MQTTListener (a generic topic+handlers pair, reused here)
+        self.topics = {}
+
+    def connect(self):
+        # Create task
+        asyncio.create_task(self.client_handler())
+
+    async def client_handler(self):
+        logging.info(f"Starting mpubsub client on port {self.port} (scope: {self.scope})")
+        self.client = MpubsubClient(
+            port=self.port, scope=self.scope, interface=self.interface,
+            key=self.key, replay_window=self.replay_window)
+        try:
+            await self.client.start()
+        except OSError as err:
+            logging.error(f"Unable to start mpubsub client: {err}")
+            return
+
+        # Gather listeners from each data source, aggregating handlers per topic
+        for ds in self.data_sources:
+            for listener in ds.listeners():
+                if listener.topic in self.topics:
+                    logging.debug(f"Adding handlers for existing mpubsub topic: {listener.topic}")
+                    self.topics[listener.topic].handlers.extend(listener.handlers)
+                else:
+                    logging.debug(f"New mpubsub listener for topic: {listener.topic}")
+                    self.topics[listener.topic] = MQTTListener(listener.topic, listener.handlers)
+
+        # Subscribe to each topic. mpubsub topics are exact strings (no
+        # wildcards): the wire carries only a CRC32, so there is nothing to
+        # match a pattern against.
+        for topic, listener in self.topics.items():
+            try:
+                await self.client.subscribe(topic, self._dispatcher(listener))
+            except ValueError as err:
+                logging.error(f"mpubsub subscribe error for '{topic}': {err}")
+        logging.info(f"Subscribed to {len(self.topics)} mpubsub topic(s)")
+
+    @staticmethod
+    def _dispatcher(listener):
+        # One callback per topic that fans out to all its handlers. The
+        # payload arrives already decoded to a string (mpubsub's default
+        # utf-8), exactly what the MQTT handlers expect.
+        async def dispatch(message):
+            for func in listener.handlers:
+                await func(message.payload)
+        return dispatch
 
 
 if __name__ == "__main__":

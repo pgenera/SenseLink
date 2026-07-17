@@ -11,7 +11,7 @@ SenseLink can emulate multiple plugs at the same time, and can report:
 2. Dynamic power usage based on other parameters through API integrations (e.g. a dimmer brightness value)
 3. Aggregate usage of any number of other plugs (static or dynamic)
 
-At the moment, dynamic power plugs can source data from the [Home Assistant](https://www.home-assistant.io) (Websockets API) and MQTT. Plus, other integrations should be relatively easy to implement!
+At the moment, dynamic power plugs can source data from the [Home Assistant](https://www.home-assistant.io) (Websockets API), MQTT, and [mpubsub](https://github.com/pgenera/esphome-mpubsub) (brokerless IPv6-multicast pub/sub — power data straight from ESPHome devices with no broker). Plus, other integrations should be relatively easy to implement!
 
 Aggregate "plugs" sum the power usage data from the specified sub-elements, and report usage just as dynamically.
 
@@ -26,6 +26,7 @@ Configuration is defined through a YAML file, that should be passed in when crea
 The YAML configuration file should start with a top level `sources` key, which defines an array of sources for power data. Each source then has a `plugs` key to define an array of individual emulated plugs, plugs other configuration details as needed for that particular source. The current supported sources types are:
 - `hass`: Home Assistant, via the Websockets API
 - `mqtt`: MQTT, via a MQTT broker
+- `mpubsub`: [mpubsub](https://github.com/pgenera/esphome-mpubsub), brokerless IPv6-multicast pub/sub (no broker needed). Same plug options as `mqtt`. See [`config_example.yml`](config_example.yml) for options; requires this host to receive IPv6 multicast on the devices' segment.
 - `static`: Plugs with unchanging power values
 - `aggregate`: Summed values of other plugs, for example for a whole room - useful for staying under the Sense limit of ~20 plugs!
 

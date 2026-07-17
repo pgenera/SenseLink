@@ -83,6 +83,37 @@ sources:
                 #  want to assume the "off" state if it misses that interval (*technically* this
                 #  should be done via MQTT's Last Will & Testament feature...)
 
+# mpubsub (brokerless IPv6-multicast pub/sub; e.g. from ESPHome devices
+#  running the mpubsub component). Same plug options as MQTT -- power_topic,
+#  state_topic, attribute_topic, scaling, timeout -- since a payload is just
+#  a value either way. Topics are exact strings; wildcards are not supported.
+  - mpubsub:
+      # All fields optional; these are the defaults. They MUST match the
+      # devices publishing to the fabric -- a different scope or port is a
+      # different multicast group, so a mismatch is silent (no error, no data).
+      port: 18512
+      scope: link-local        # link-local | site-local | organization-local
+      # interface: eth0        # Pin the egress/join interface; required on a
+                               #  host with more than one network interface.
+      # encryption_key: "shared-secret"  # Match the devices' encryption.key
+      # replay_window: 30      # Seconds; only with encryption_key. 0 = off.
+      plugs:
+        # Direct power reporting: the value published to the topic is watts.
+        - Workshop_Heater:
+            mac: 53:75:31:f6:4e:01
+            alias: "Workshop Heater"
+            power_topic: workshop/heater/power
+        # Scaled attribute (e.g. a 0-255 dimmer) into a wattage range.
+        - Desk_Lamp:
+            mac: 53:75:31:f6:4e:02
+            alias: "Desk Lamp"
+            attribute_topic: "desk/lamp/brightness"
+            attribute_min: 0
+            attribute_max: 255
+            min_watts: 0
+            max_watts: 12
+            timeout_duration: 3600  # Assume off if no update within an hour
+
 # Static
   - static:
       plugs:

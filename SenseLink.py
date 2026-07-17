@@ -13,6 +13,7 @@ from aioudp import *
 STATIC_KEY = 'static'
 HASS_KEY = 'hass'
 MQTT_KEY = 'mqtt'
+MPUBSUB_KEY = 'mpubsub'
 AGG_KEY = 'aggregate'
 PLUGS_KEY = 'plugs'
 
@@ -107,6 +108,29 @@ class SenseLink:
 
                 # Start controller
                 mqtt_controller.connect()
+
+            # mpubsub Plugs (brokerless IPv6 multicast)
+            elif source_id.lower() == MPUBSUB_KEY:
+                # Configure this mpubsub Data source
+                mpubsub = source[MPUBSUB_KEY]
+                if mpubsub is None:
+                    logging.error(f"Configuration error for Source {source_id}")
+                port = mpubsub.get('port') or 18512
+                scope = mpubsub.get('scope') or 'link-local'
+                interface = mpubsub.get('interface') or None
+                # Accept 'encryption_key' or 'key' for the passphrase
+                key = mpubsub.get('encryption_key') or mpubsub.get('key') or None
+                replay_window = mpubsub.get('replay_window') or 0
+                mpubsub_controller = MPubSubController(port, scope, interface, key, replay_window)
+
+                # Generate plug instances
+                plugs = mpubsub[PLUGS_KEY]
+                logging.info("Generating mpubsub instances")
+                instances = PlugInstance.configure_plugs(plugs, MPubSubSource, mpubsub_controller)
+                self.add_instances(instances)
+
+                # Start controller
+                mpubsub_controller.connect()
 
             # Aggregate-type Plugs
             elif source_id.lower() == AGG_KEY:

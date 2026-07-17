@@ -4,3 +4,7 @@ paho-mqtt==1.5.0
 PyYAML==5.3.1
 six==1.15.0
 websockets==8.1
+# Brokerless IPv6-multicast pub/sub source. Pure-stdlib (adds no transitive
+# dependencies). Add the [crypto] extra for a faster AEAD if you use mpubsub
+# encryption heavily.
+mpubsub @ git+https://github.com/pgenera/esphome-mpubsub.git#subdirectory=python

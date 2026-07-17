@@ -6,6 +6,7 @@ import asyncio
 from math import isclose
 from DataController import HASSController
 from DataController import MQTTController, MQTTListener
+from DataController import MPubSubController
 
 
 def safekey(d, keypath, default=None):
@@ -386,3 +387,58 @@ class MQTTSource(DataSource):
             listeners.append(MQTTListener(self.attribute_topic, [self.attribute_handler]))
 
         return listeners
+
+
+class MPubSubSource(MQTTSource):
+    # An mpubsub source is an MQTT source with a different transport
+    # underneath. The config parsing, the power/attribute handlers, scaling,
+    # timeout and listener wiring are all reused, because a payload is just a
+    # decoded string in both. Three things are overridden: add_controller (to
+    # accept an mpubsub controller), and get_power / state_handler (to fix two
+    # latent MQTTSource behaviours around power_topic -- see each method).
+
+    def add_controller(self, controller):
+        # Add self to passed-in mpubsub Data Controller
+        if not isinstance(controller, MPubSubController):
+            raise TypeError(
+                f"Incorrect controller type {type(self.controller).__name__} passed to mpubsub Data Source")
+        # Skip MQTTSource's MQTT-specific type check; reuse everything else.
+        DataSource.add_controller(self, controller)
+
+    def get_power(self):
+        # Report the value the handlers set via update_power, like HASSSource.
+        # MQTTSource inherits DataSource.get_power, which recomputes from
+        # state/min/max/on_fraction and so ignores a value delivered on a
+        # power_topic (a power_topic-only plug would report 0). We report the
+        # value directly, which is correct for the power, attribute, and state
+        # paths alike (each routes through update_power -> self.power).
+        return self.power
+
+    async def state_handler(self, value):
+        # As MQTTSource.state_handler, but the "on" state must not force
+        # max_watts when a power_topic (or attribute_topic) supplies the
+        # wattage -- otherwise turning "on" clobbers the real value with
+        # max_watts. MQTTSource special-cases attribute_topic here but not
+        # power_topic; a power_topic + state_topic plug (e.g. a charger that
+        # reports draw while active and off_usage while idle) needs both.
+        logging.debug(f'State topic update for {self.identifier}: {value}')
+        if value == self.off_state_value:
+            self.state = False
+            self.update_power(self.off_usage)
+        elif value == self.on_state_value:
+            self.state = True
+            if self.power_topic is None and self.attribute_topic is None:
+                # Binary state-only plug: "on" means max_watts.
+                self.update_power(self.max_watts)
+            # Otherwise leave the wattage to the power/attribute handler.
+        else:
+            # Non-matching state: use it as a power value if it's numeric and
+            # no power_topic is defined (same fallback as MQTTSource).
+            try:
+                fstate = float(value)
+                if self.power_topic is None:
+                    self.update_power(fstate)
+            except ValueError:
+                logging.debug(
+                    f'State update ("{value}") is non-numeric and does not match '
+                    f'on/off values, ignoring')
